@@ -1,8 +1,27 @@
-import discord
+from dotenv import dotenv_values
+from discord import Bot, Intents
+import os
 
-intents = discord.Intents.default()
-intents.message_content = True
+envs = dotenv_values(".env")
+MODE = envs["MODE"]
+TEST_GUILDS = [831193807734571029, 778250495038980137]
 
-client = discord.Client(intents=intents)
+if MODE == "PI":
+    BOT_TOKEN = envs["BOT_TOKEN"]
+else:
+    BOT_TOKEN = envs["SECOND_TOKEN"]
 
-# test 2 3
+bot = Bot(intents=Intents.all())
+
+
+for filename in os.listdir("./commands"):
+    if filename.endswith(".py") and not filename.startswith("_"):
+        bot.load_extension(f"commands.{filename[:-3]}")
+
+
+@bot.event
+async def on_ready():
+    print("Bot is ready!")
+
+if __name__ == "__main__":
+    bot.run(BOT_TOKEN)
