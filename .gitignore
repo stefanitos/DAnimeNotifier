@@ -178,3 +178,5 @@ pyrightconfig.json
 /venv
 .env
 .idea
+
+.sqlite
