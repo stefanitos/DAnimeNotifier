@@ -1,5 +1,6 @@
 import aiosqlite
 from discord.ext import commands
+from discord.commands import ApplicationContext
 
 
 class DatabaseCog(commands.Cog):
@@ -59,28 +60,18 @@ create table Guild
         return await cursor.fetchall()
 
     async def add_anime(self, guild_id, channel_id, search_results: dict, last_episode):
-        """
-        search_results:
-            {
-                "name": name,
-                "url": href.split("/category/")[-1],
-                "full_url": f"{self.BASE_URL}{href}",
-                "href": href,
-                "image": image,
-            }
-        """
-
         cursor = await self.db.cursor()
         await cursor.execute(
             "INSERT INTO AnimeSeries (anime_name, anime_title_url, last_episode) VALUES (?, ?, ?)",
-            (search_results["name"], search_results["url"], 0))
+            (search_results["name"], search_results["url"], last_episode))
+
+        await cursor.execute("SELECT last_insert_rowid()")
+        anime_id = (await cursor.fetchone())[0]
 
         await cursor.execute(
-            "INSERT INTO Channel (channel_id, guild_id) VALUES (?, ?)",
-            (channel_id, guild_id)
+            "INSERT INTO Channel (channel_id, guild_id) VALUES (?, ?)", (channel_id, guild_id)
         )
 
-        anime_id = cursor.lastrowid
         await cursor.execute(
             "INSERT INTO AnimeChannelLink (anime_id, channel_id) VALUES (?, ?)",
             (anime_id, channel_id)

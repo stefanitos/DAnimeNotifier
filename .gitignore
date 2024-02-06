@@ -179,4 +179,4 @@ pyrightconfig.json
 .env
 .idea
 
-.sqlite
+*.sqlite

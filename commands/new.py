@@ -64,9 +64,10 @@ class New(commands.Cog):
             current_episode = await anitaku.get_new_episode(selected_anime["href"])
             print(current_episode)
 
-            await database.add_anime(ctx.guild.id, ctx.channel.id, selected_anime, current_episode)
             category = await create_category(ctx)
-            await ctx.guild.create_text_channel(selected_anime["name"], category=category)
+            new_channel = await ctx.guild.create_text_channel(selected_anime["name"], category=category)
+            await database.add_anime(ctx.guild.id, new_channel.id, selected_anime, current_episode)
+
             await ctx.respond(f"Created channel for {selected_anime['name']}", ephemeral=True)
 
 
