@@ -17,7 +17,6 @@ class Clear(commands.Cog):
         cursor = await db.db.cursor()
         await cursor.execute("DELETE FROM AnimeSeries")
         await cursor.execute("DELETE FROM Channel")
-        await cursor.execute("DELETE FROM Guild")
         await cursor.execute("DELETE FROM AnimeChannelLink")
         await db.db.commit()
         await ctx.respond("Cleared all tables!")

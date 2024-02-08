@@ -23,5 +23,11 @@ for filename in os.listdir("./commands"):
 async def on_ready():
     print("Bot is ready!")
 
+
+@bot.slash_command(name="reload", description="Reload a cog", guild_ids=TEST_GUILDS)
+async def reload(ctx, cog: str):
+    bot.reload_extension(f"commands.{cog}")
+    await ctx.respond(f"Reloaded {cog}")
+
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)

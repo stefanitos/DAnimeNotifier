@@ -2,6 +2,7 @@
 from AnitakuWrapper import AnitakuWrapper
 from discord.commands import ApplicationContext
 from discord.ext import commands
+import time
 
 
 from main import TEST_GUILDS
@@ -15,7 +16,11 @@ class Test(commands.Cog):
     async def test(self, ctx: ApplicationContext):
         await ctx.respond("Test command")
         db = self.bot.get_cog("DatabaseCog")
-        print(await db.get_all_anime())
+        g_id = ctx.guild.id
+        a_name = "naruto-shinsaku-anime"
+        start = time.time()
+        print(await db.guild_has_anime(g_id, a_name))
+        print(time.time() - start)
 
 
 def setup(bot):

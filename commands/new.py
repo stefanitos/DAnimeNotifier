@@ -71,5 +71,7 @@ class New(commands.Cog):
             await ctx.respond(f"Created channel for {selected_anime['name']}", ephemeral=True)
 
 
+
+
 def setup(bot):
     bot.add_cog(New(bot))

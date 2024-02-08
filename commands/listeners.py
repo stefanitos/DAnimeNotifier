@@ -17,7 +17,6 @@ class Listeners(commands.Cog):
 
         await self.database.register_guild(guild.id, guild.name)
 
-
     @commands.Cog.listener()
     async def on_guild_remove(self, guild):
         print(f"Left {guild.name} with {guild.member_count} members!")
