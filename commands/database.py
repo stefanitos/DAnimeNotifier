@@ -39,7 +39,7 @@ class DatabaseCog(commands.Cog):
     """
 
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: commands.Bot = bot
         self.db = None
         self.bot.loop.create_task(self.connect_to_db())
 

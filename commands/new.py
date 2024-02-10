@@ -24,7 +24,7 @@ async def create_category(ctx):
 
 class New(commands.Cog):
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: commands.Bot = bot
 
     @commands.slash_command(name="new", description="Create a new channel ", guild_ids=TEST_GUILDS)
     async def new(self, ctx: ApplicationContext, anime_name: Option(str, "The name of the anime you want to add")):

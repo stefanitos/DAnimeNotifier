@@ -10,7 +10,7 @@ from main import TEST_GUILDS
 
 class Test(commands.Cog):
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: commands.Bot = bot
 
     @commands.slash_command(name="test", aliases=["t"], description="Test command", guild_ids=TEST_GUILDS)
     async def test(self, ctx: ApplicationContext):
