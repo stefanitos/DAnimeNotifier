@@ -3,40 +3,40 @@ from discord.ext import commands
 
 
 class DatabaseCog(commands.Cog):
-    """Database creaation script:
-create table AnimeChannelLink
-(
-    anime_id   INTEGER
-        references AnimeSeries,
-    channel_id INTEGER
-        references Channel,
-    primary key (anime_id, channel_id)
-);
-create table AnimeSeries
-(
-    anime_id        INTEGER
-        primary key autoincrement,
-    anime_name      TEXT    not null,
-    anime_title_url TEXT    not null,
-    last_episode    INTEGER not null,
-    image           TEXT default NULL
-);
-create table Channel
-(
-    channel_id INTEGER not null
-        primary key
-        unique,
-    guild_id   INTEGER
-        references Guild
-);
-create table Guild
-(
-    guild_id   INTEGER not null
-        primary key
-        unique,
-    guild_name TEXT    not null
-);
-"""
+    """Database creation script:
+        create table AnimeChannelLink
+        (
+            anime_id   INTEGER
+                references AnimeSeries,
+            channel_id INTEGER
+                references Channel,
+            primary key (anime_id, channel_id)
+        );
+        create table AnimeSeries
+        (
+            anime_id        INTEGER
+                primary key autoincrement,
+            anime_name      TEXT    not null,
+            anime_title_url TEXT    not null,
+            last_episode    INTEGER not null,
+            image           TEXT default NULL
+        );
+        create table Channel
+        (
+            channel_id INTEGER not null
+                primary key
+                unique,
+            guild_id   INTEGER
+                references Guild
+        );
+        create table Guild
+        (
+            guild_id   INTEGER not null
+                primary key
+                unique,
+            guild_name TEXT    not null
+        );
+    """
 
     def __init__(self, bot):
         self.bot = bot
@@ -45,30 +45,48 @@ create table Guild
 
     async def connect_to_db(self):
         self.db = await aiosqlite.connect("database/identifier.sqlite")
-        await self.db.execute("PRAGMA journal_mode=WAL;")
         await self.db.commit()
+
+    async def execute_sql(self, sql, params=None):
+        async with self.db.cursor() as cursor:
+            await cursor.execute(sql, params)
+            await self.db.commit()
+
+    async def fetch_one(self, sql, params=None):
+        async with self.db.cursor() as cursor:
+            await cursor.execute(sql, params)
+            return await cursor.fetchone()
+
+    async def fetch_all(self, sql, params=None):
+        async with self.db.cursor() as cursor:
+            await cursor.execute(sql, params)
+            return await cursor.fetchall()
 
     async def guild_has_anime(self, guild_id, anime_name_url) -> bool:
-        cursor = await self.db.cursor()
-        await cursor.execute(
-            "SELECT * FROM AnimeChannelLink WHERE anime_id = (SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?) AND channel_id = (SELECT channel_id FROM Channel WHERE guild_id = ?)",
-            (anime_name_url, guild_id)
-        )
-        return bool(await cursor.fetchone())
+        select_exists_anime_in_guild_sql = """
+        SELECT EXISTS(
+            SELECT  1 FROM AnimeChannelLink
+            INNER JOIN AnimeSeries ON AnimeSeries.anime_id = AnimeChannelLink.anime_id
+            INNER JOIN Channel ON Channel.channel_id = AnimeChannelLink.channel_id
+            WHERE AnimeSeries.anime_title_url = ? AND Channel.guild_id = ?
+        );
+        """
+        return bool(await self.fetch_one(select_exists_anime_in_guild_sql, (anime_name_url, guild_id)))
 
     async def register_guild(self, guild_id, guild_name):
-        cursor = await self.db.cursor()
-        await cursor.execute("INSERT INTO Guild (guild_id, guild_name) VALUES (?, ?)", (guild_id, guild_name))
-        await self.db.commit()
+        insert_guild_sql = "INSERT INTO Guild (guild_id, guild_name) VALUES (?, ?)"
+        await self.execute_sql(insert_guild_sql, (guild_id, guild_name))
         print(f"Registered {guild_name} with id {guild_id}")
 
     async def get_all_guild_anime(self, guild_id):
-        cursor = await self.db.cursor()
-        await cursor.execute(
-            "SELECT anime_name, anime_title_url, last_episode FROM AnimeSeries WHERE anime_id IN (SELECT anime_id FROM AnimeChannelLink WHERE channel_id IN (SELECT channel_id FROM Channel WHERE guild_id = ?))",
-            (guild_id,)
-        )
-        return await cursor.fetchall()
+        select_all_anime_in_guild_sql = """
+        SELECT AnimeSeries.anime_name, AnimeSeries.anime_title_url, AnimeSeries.last_episode
+        FROM AnimeSeries
+        INNER JOIN AnimeChannelLink ON AnimeSeries.anime_id = AnimeChannelLink.anime_id
+        INNER JOIN Channel ON Channel.channel_id = AnimeChannelLink.channel_id
+        WHERE Channel.guild_id = ?;
+        """
+        return await self.fetch_all(select_all_anime_in_guild_sql, (guild_id,))
 
     async def add_anime(self, guild_id, channel_id, search_results: dict, last_episode):
         # search_results =
@@ -79,63 +97,56 @@ create table Guild
         #     "href": "/category/sousou-no-frieren",
         #     "image": "https://gogocdn.net/cover/sousou-no-frieren-1696000134.png",
         # }
-        cursor = await self.db.cursor()
-        # Check if the anime already exists in the AnimeSeries table
-        await cursor.execute(
-            "SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?",
-            (search_results["url"],)
-        )
-        result = await cursor.fetchone()
-        if result is None:
-            # If the anime does not exist, insert it into the AnimeSeries table
-            await cursor.execute(
-                "INSERT INTO AnimeSeries (anime_name, anime_title_url, last_episode, image) VALUES (?, ?, ?, ?)",
-                (search_results["name"], search_results["url"], last_episode, search_results["image"])
-            )
+        select_anime_id_by_url_sql = "SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?"
+        anime_id = await self.fetch_one(select_anime_id_by_url_sql, (search_results["url"],))
+        if anime_id is None:
+            insert_new_anime_sql = """
+            INSERT INTO AnimeSeries (anime_name, anime_title_url, last_episode, image)
+            VALUES (?, ?, ?, ?);
+            """
+            await self.execute_sql(insert_new_anime_sql, (
+                search_results["name"], search_results["url"], last_episode, search_results["image"]))
             anime_id = await self.get_anime_id(search_results["url"])
         else:
-            # If the anime exists, use the existing anime_id
-            anime_id = result[0]
+            anime_id = anime_id[0]
 
-        # Insert the channel into the Channel table if it doesn't exist
-        await cursor.execute(
-            "INSERT OR IGNORE INTO Channel (channel_id, guild_id) VALUES (?, ?)",
-            (channel_id, guild_id)
-        )
+        insert_or_ignore_channel_sql = "INSERT OR IGNORE INTO Channel (channel_id, guild_id) VALUES (?, ?)"
+        await self.execute_sql(insert_or_ignore_channel_sql, (channel_id, guild_id))
 
-        # Link the anime to the channel
-        await cursor.execute(
-            "INSERT OR IGNORE INTO AnimeChannelLink (anime_id, channel_id) VALUES (?, ?)",
-            (anime_id, channel_id)
-        )
-
-        await self.db.commit()
+        print(anime_id, channel_id)
+        insert_or_ignore_anime_channel_link_sql = "INSERT OR IGNORE INTO AnimeChannelLink (anime_id, channel_id) VALUES (?, ?)"
+        await self.execute_sql(insert_or_ignore_anime_channel_link_sql, (anime_id, channel_id))
 
     async def remove_anime(self, anime_name_url, guild_id):
-        cursor = await self.db.cursor()
-        await cursor.execute(
-            "DELETE FROM AnimeChannelLink WHERE anime_id = (SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?) AND channel_id IN (SELECT channel_id FROM Channel WHERE guild_id = ?)",
-            (anime_name_url, guild_id)
-        )
-        await cursor.execute(
-            "DELETE FROM Channel WHERE channel_id NOT IN (SELECT channel_id FROM AnimeChannelLink)"
-        )
-        await cursor.execute(
-            "DELETE FROM AnimeSeries WHERE anime_id NOT IN (SELECT anime_id FROM AnimeChannelLink)"
-        )
+        delete_anime_channel_link_sql = """
+        DELETE FROM AnimeChannelLink
+        WHERE anime_id = (SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?)
+        AND channel_id IN (SELECT channel_id FROM Channel WHERE guild_id = ?);
+        """
+        await self.execute_sql(delete_anime_channel_link_sql, (anime_name_url, guild_id))
 
-        await self.db.commit()
+        delete_unused_channels_sql = "DELETE FROM Channel WHERE channel_id NOT IN (SELECT channel_id FROM AnimeChannelLink)"
+        await self.execute_sql(delete_unused_channels_sql, ())
+
+        delete_unused_anime_series_sql = "DELETE FROM AnimeSeries WHERE anime_id NOT IN (SELECT anime_id FROM AnimeChannelLink)"
+        await self.execute_sql(delete_unused_anime_series_sql, ())
 
     async def get_anime_id(self, anime_name_url):
-        cursor = await self.db.cursor()
-        await cursor.execute("SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?", (anime_name_url,))
-        return (await cursor.fetchone())[0]
+        select_anime_id_by_url_sql = "SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?"
+        result = await self.fetch_one(select_anime_id_by_url_sql, (anime_name_url,))
+        if result is not None:
+            return result[0]  # Return the first element of the tuple
+        return None  # Or handle the case where the anime_id is not found
 
     async def get_channel_id(self, anime_name_url, guild_id):
-        cursor = await self.db.cursor()
-        db_anime_id = await self.get_anime_id(anime_name_url)
-        await cursor.execute("SELECT channel_id FROM AnimeChannelLink WHERE anime_id = ? AND channel_id IN (SELECT channel_id FROM Channel WHERE guild_id = ?)", (db_anime_id, guild_id))
-        return (await cursor.fetchone())[0]
+        select_channel_id_by_anime_and_guild_sql = """
+        SELECT Channel.channel_id
+        FROM AnimeChannelLink
+        INNER JOIN AnimeSeries ON AnimeSeries.anime_id = AnimeChannelLink.anime_id
+        INNER JOIN Channel ON Channel.channel_id = AnimeChannelLink.channel_id
+        WHERE AnimeSeries.anime_title_url = ? AND Channel.guild_id = ?;
+        """
+        return await self.fetch_one(select_channel_id_by_anime_and_guild_sql, (anime_name_url, guild_id))
 
 
 def setup(bot):
