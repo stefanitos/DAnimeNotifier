@@ -5,7 +5,6 @@ from discord.ext import commands
 from discord import Embed
 from asyncio import TimeoutError as AsyncTimeoutError
 
-
 from main import TEST_GUILDS
 
 
@@ -20,10 +19,11 @@ class Remove(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.slash_command(name="remove",  description="Remove anime command", guild_ids=TEST_GUILDS)
+    @commands.slash_command(name="remove", description="Remove anime command", guild_ids=TEST_GUILDS)
     async def remove(self, ctx: ApplicationContext):
         db = self.bot.get_cog("DatabaseCog")
-        all_guild_anime = await db.get_all_guild_anime(ctx.guild.id) # [('Naruto (Shinsaku Anime)', 'naruto-shinsaku-anime', 0), ('Sousou no Frieren', 'sousou-no-frieren', 21)]
+        all_guild_anime = await db.get_all_guild_anime(
+            ctx.guild.id)  # [('Naruto (Shinsaku Anime)', 'naruto-shinsaku-anime', 0), ('Sousou no Frieren', 'sousou-no-frieren', 21)]
         if not all_guild_anime:
             await ctx.respond("No anime found in this server!")
             return
@@ -33,10 +33,10 @@ class Remove(commands.Cog):
 
         def check(m):
             return (
-                m.author == ctx.author and
-                m.channel == ctx.channel and
-                m.content.isdigit() and
-                int(m.content) in range(1, len(all_guild_anime) + 1)
+                    m.author == ctx.author and
+                    m.channel == ctx.channel and
+                    m.content.isdigit() and
+                    int(m.content) in range(1, len(all_guild_anime) + 1)
             )
 
         try:
@@ -48,8 +48,9 @@ class Remove(commands.Cog):
         anime_name_url = all_guild_anime[int(response.content) - 1][1]
         anime_name = all_guild_anime[int(response.content) - 1][0]
 
-        await db.remove_anime(ctx.guild.id, anime_name_url)
-
+        channel = ctx.guild.get_channel(await db.get_channel_id(anime_name_url, ctx.guild.id))
+        await channel.delete()
+        await db.remove_anime(anime_name_url, ctx.guild.id)
         await ctx.respond(f"Removed {anime_name} from this server!")
 
 
