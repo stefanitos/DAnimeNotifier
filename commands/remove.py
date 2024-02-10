@@ -20,7 +20,16 @@ class Remove(commands.Cog):
     @commands.slash_command(name="remove", description="Remove anime command", guild_ids=TEST_GUILDS)
     async def remove(self, ctx: ApplicationContext):
         db = self.bot.get_cog("DatabaseCog")
-        channel_id = ctx.channel_id
+        channel = ctx.channel
+        channel_id = channel.id
+
+        if not await db.is_anime_channel(channel_id):
+            await ctx.respond("This channel is not an anime channel!", ephemeral=True)
+            return
+
+        await db.remove_anime(channel_id)
+
+        await channel.delete()
 
 
 def setup(bot):

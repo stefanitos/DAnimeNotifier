@@ -117,20 +117,6 @@ class DatabaseCog(commands.Cog):
         insert_or_ignore_anime_channel_link_sql = "INSERT OR IGNORE INTO AnimeChannelLink (anime_id, channel_id) VALUES (?, ?)"
         await self.execute_sql(insert_or_ignore_anime_channel_link_sql, (anime_id, channel_id))
 
-    async def remove_anime(self, anime_name_url, guild_id):
-        delete_anime_channel_link_sql = """
-        DELETE FROM AnimeChannelLink
-        WHERE anime_id = (SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?)
-        AND channel_id IN (SELECT channel_id FROM Channel WHERE guild_id = ?);
-        """
-        await self.execute_sql(delete_anime_channel_link_sql, (anime_name_url, guild_id))
-
-        delete_unused_channels_sql = "DELETE FROM Channel WHERE channel_id NOT IN (SELECT channel_id FROM AnimeChannelLink)"
-        await self.execute_sql(delete_unused_channels_sql, ())
-
-        delete_unused_anime_series_sql = "DELETE FROM AnimeSeries WHERE anime_id NOT IN (SELECT anime_id FROM AnimeChannelLink)"
-        await self.execute_sql(delete_unused_anime_series_sql, ())
-
     async def get_anime_id(self, anime_name_url):
         select_anime_id_by_url_sql = "SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?"
         result = await self.fetch_one(select_anime_id_by_url_sql, (anime_name_url,))
@@ -138,15 +124,54 @@ class DatabaseCog(commands.Cog):
             return result[0]  # Return the first element of the tuple
         return None  # Or handle the case where the anime_id is not found
 
-    async def get_channel_id(self, anime_name_url, guild_id):
-        select_channel_id_by_anime_and_guild_sql = """
-        SELECT Channel.channel_id
-        FROM AnimeChannelLink
-        INNER JOIN AnimeSeries ON AnimeSeries.anime_id = AnimeChannelLink.anime_id
-        INNER JOIN Channel ON Channel.channel_id = AnimeChannelLink.channel_id
-        WHERE AnimeSeries.anime_title_url = ? AND Channel.guild_id = ?;
-        """
-        return await self.fetch_one(select_channel_id_by_anime_and_guild_sql, (anime_name_url, guild_id))
+    async def remove_anime(self, channel_id):
+        async with self.db.cursor() as cursor:
+            try:
+                # Start a transaction
+                await cursor.execute("BEGIN TRANSACTION")
+
+                # Delete the link between the anime and the channel
+                delete_anime_channel_link_sql = "DELETE FROM AnimeChannelLink WHERE channel_id = ?"
+                await cursor.execute(delete_anime_channel_link_sql, (channel_id,))
+
+                # Delete the channel from the Channel table
+                delete_channel_sql = "DELETE FROM Channel WHERE channel_id = ?"
+                await cursor.execute(delete_channel_sql, (channel_id,))
+
+                # Check if there are any remaining links to the anime
+                check_remaining_links_sql = """
+                SELECT COUNT(*) FROM AnimeChannelLink
+                WHERE anime_id IN (
+                    SELECT anime_id FROM AnimeChannelLink WHERE channel_id = ?
+                )
+                """
+
+                await cursor.execute(check_remaining_links_sql, (channel_id,))
+
+                remaining_links = await cursor.fetchone()
+
+                if remaining_links is not None and remaining_links[0] == 0:
+                    delete_anime_series_sql = """
+                    DELETE FROM AnimeSeries
+                    WHERE anime_id NOT IN (
+                        SELECT anime_id FROM AnimeChannelLink
+                    )
+                    """
+                    await cursor.execute(delete_anime_series_sql)
+
+                # Commit the transaction
+                await cursor.execute("COMMIT")
+            except Exception as e:
+                # Rollback the transaction in case of an error
+                await cursor.execute("ROLLBACK")
+                print(f"Error removing anime: {e}")
+                raise  # Re-raise the exception to inform the caller of the failure
+
+        return True
+
+    async def is_anime_channel(self, channel_id):
+        select_anime_channel_sql = "SELECT EXISTS(SELECT 1 FROM AnimeChannelLink WHERE channel_id = ?)"
+        return bool(await self.fetch_one(select_anime_channel_sql, (channel_id,)))
 
 
 def setup(bot):
