@@ -11,15 +11,14 @@ from main import TEST_GUILDS
 class Test(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
+        self.db = bot.get_cog("DatabaseCog")
 
     @commands.slash_command(name="test", aliases=["t"], description="Test command", guild_ids=TEST_GUILDS)
     async def test(self, ctx: ApplicationContext):
-        await ctx.respond("Test command")
-        db = self.bot.get_cog("DatabaseCog")
-        g_id = ctx.guild.id
-        a_name = "naruto-shinsaku-anime"
         start = time.time()
-        print(await db.guild_has_anime(g_id, a_name))
+        await ctx.respond("Test command!")
+        anim_list = await self.db.get_anime_list()
+        print(anim_list)
         print(time.time() - start)
 
 

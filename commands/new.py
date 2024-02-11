@@ -25,10 +25,10 @@ async def create_category(ctx):
 class New(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
+        self.db = self.bot.get_cog("DatabaseCog")
 
     @commands.slash_command(name="new", description="Create a new channel ", guild_ids=TEST_GUILDS)
     async def new(self, ctx: ApplicationContext, anime_name: Option(str, "The name of the anime you want to add")):
-        database = self.bot.get_cog("DatabaseCog")
         await ctx.defer(ephemeral=True)
         async with AnitakuWrapper() as anitaku:
             anime_search = await anitaku.search(anime_name)
@@ -59,14 +59,14 @@ class New(commands.Cog):
 
             selection = int(response.content) - 1
             selected_anime = anime_search[selection]
-            print(selected_anime)
+            # print(selected_anime)
 
             current_episode = await anitaku.get_new_episode(selected_anime["href"])
-            print(current_episode)
+            # print(current_episode)
 
             category = await create_category(ctx)
             new_channel = await ctx.guild.create_text_channel(selected_anime["name"], category=category)
-            await database.add_anime(ctx.guild.id, new_channel.id, selected_anime, current_episode)
+            await self.db.add_anime(ctx.guild.id, new_channel.id, selected_anime, current_episode)
 
             await ctx.respond(f"Created channel for {selected_anime['name']}", ephemeral=True)
 

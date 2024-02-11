@@ -16,18 +16,19 @@ async def list_to_num_string(anime_list):
 class Remove(commands.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
+        self.db = bot.get_cog("DatabaseCog")
 
     @commands.slash_command(name="remove", description="Remove anime command", guild_ids=TEST_GUILDS)
     async def remove(self, ctx: ApplicationContext):
-        db = self.bot.get_cog("DatabaseCog")
         channel = ctx.channel
         channel_id = channel.id
 
-        if not await db.is_anime_channel(channel_id):
+        is_anime_channel = await self.db.is_anime_channel(channel_id)
+        if not is_anime_channel:
             await ctx.respond("This channel is not an anime channel!", ephemeral=True)
             return
 
-        await db.remove_anime(channel_id)
+        await self.db.remove_anime(channel_id)
 
         await channel.delete()
 

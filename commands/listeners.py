@@ -10,11 +10,6 @@ class Listeners(commands.Cog):
     async def on_guild_join(self, guild):
         print(f"Joined {guild.name} with {guild.member_count} members!")
 
-        for channel in guild.text_channels:
-            if channel.permissions_for(guild.me).send_messages:
-                await channel.send("Hello! I am a bot created by Anitaku#0001. Use /help to see the commands I can do!")
-                break
-
         await self.database.register_guild(guild.id, guild.name)
 
     @commands.Cog.listener()

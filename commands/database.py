@@ -1,3 +1,5 @@
+import time
+
 import aiosqlite
 from discord.ext import commands
 
@@ -12,6 +14,14 @@ class DatabaseCog(commands.Cog):
                 references Channel,
             primary key (anime_id, channel_id)
         );
+
+        create index idx_anime_id
+            on AnimeChannelLink (anime_id);
+
+        create index idx_channel_id
+            on AnimeChannelLink (channel_id);
+
+
         create table AnimeSeries
         (
             anime_id        INTEGER
@@ -21,6 +31,11 @@ class DatabaseCog(commands.Cog):
             last_episode    INTEGER not null,
             image           TEXT default NULL
         );
+
+        create index idx_anime_title_url
+            on AnimeSeries (anime_title_url);
+
+
         create table Channel
         (
             channel_id INTEGER not null
@@ -29,6 +44,10 @@ class DatabaseCog(commands.Cog):
             guild_id   INTEGER
                 references Guild
         );
+
+        create index idx_guild_id
+            on Channel (guild_id);
+
         create table Guild
         (
             guild_id   INTEGER not null
@@ -46,6 +65,7 @@ class DatabaseCog(commands.Cog):
     async def connect_to_db(self):
         self.db = await aiosqlite.connect("database/identifier.sqlite")
         await self.db.commit()
+        self.bot.dispatch('on_database_connected')
 
     async def execute_sql(self, sql, params=None):
         async with self.db.cursor() as cursor:
@@ -65,7 +85,7 @@ class DatabaseCog(commands.Cog):
     async def guild_has_anime(self, guild_id, anime_name_url) -> bool:
         select_exists_anime_in_guild_sql = """
         SELECT EXISTS(
-            SELECT  1 FROM AnimeChannelLink
+            SELECT 1 FROM AnimeChannelLink
             INNER JOIN AnimeSeries ON AnimeSeries.anime_id = AnimeChannelLink.anime_id
             INNER JOIN Channel ON Channel.channel_id = AnimeChannelLink.channel_id
             WHERE AnimeSeries.anime_title_url = ? AND Channel.guild_id = ?
@@ -97,6 +117,7 @@ class DatabaseCog(commands.Cog):
         #     "href": "/category/sousou-no-frieren",
         #     "image": "https://gogocdn.net/cover/sousou-no-frieren-1696000134.png",
         # }
+        start = time.time()
         select_anime_id_by_url_sql = "SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?"
         anime_id = await self.fetch_one(select_anime_id_by_url_sql, (search_results["url"],))
         if anime_id is None:
@@ -113,21 +134,21 @@ class DatabaseCog(commands.Cog):
         insert_or_ignore_channel_sql = "INSERT OR IGNORE INTO Channel (channel_id, guild_id) VALUES (?, ?)"
         await self.execute_sql(insert_or_ignore_channel_sql, (channel_id, guild_id))
 
-        print(anime_id, channel_id)
+        # print(anime_id, channel_id)
         insert_or_ignore_anime_channel_link_sql = "INSERT OR IGNORE INTO AnimeChannelLink (anime_id, channel_id) VALUES (?, ?)"
         await self.execute_sql(insert_or_ignore_anime_channel_link_sql, (anime_id, channel_id))
+        print(f"Added {search_results['name']} to {guild_id} in {time.time() - start:.2f} seconds")
 
     async def get_anime_id(self, anime_name_url):
         select_anime_id_by_url_sql = "SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?"
         result = await self.fetch_one(select_anime_id_by_url_sql, (anime_name_url,))
         if result is not None:
-            return result[0]  # Return the first element of the tuple
-        return None  # Or handle the case where the anime_id is not found
+            return result[0]
+        return None
 
     async def remove_anime(self, channel_id):
         async with self.db.cursor() as cursor:
             try:
-                # Start a transaction
                 await cursor.execute("BEGIN TRANSACTION")
 
                 # Delete the link between the anime and the channel
@@ -162,16 +183,37 @@ class DatabaseCog(commands.Cog):
                 # Commit the transaction
                 await cursor.execute("COMMIT")
             except Exception as e:
-                # Rollback the transaction in case of an error
                 await cursor.execute("ROLLBACK")
                 print(f"Error removing anime: {e}")
-                raise  # Re-raise the exception to inform the caller of the failure
+                raise
 
         return True
 
+    async def update_last_episode(self, last_episode, anime_id=None, anime_name_url=None):
+        if anime_id is None:
+            select_anime_id_by_url_sql = "SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?"
+            anime_id = (await self.fetch_one(select_anime_id_by_url_sql, (anime_name_url,)))[0]
+        update_last_episode_sql = "UPDATE AnimeSeries SET last_episode = ? WHERE anime_id = ?"
+        await self.execute_sql(update_last_episode_sql, (last_episode, anime_id))
+
     async def is_anime_channel(self, channel_id):
         select_anime_channel_sql = "SELECT EXISTS(SELECT 1 FROM AnimeChannelLink WHERE channel_id = ?)"
-        return bool(await self.fetch_one(select_anime_channel_sql, (channel_id,)))
+        return bool((await self.fetch_one(select_anime_channel_sql, (channel_id,)))[0])
+
+    async def get_anime_list(self):
+        select_all_anime_series_sql = "SELECT anime_id, anime_name, anime_title_url, last_episode, image FROM AnimeSeries;"
+        return await self.fetch_all(select_all_anime_series_sql)
+
+    async def cleanup(self):
+        await self.db.close()
+        print("Database connection closed")
+
+    def cog_unload(self):
+        self.bot.loop.create_task(self.cleanup())
+
+    @commands.Cog.listener()
+    async def on_disconnect(self):
+        await self.cleanup()
 
 
 def setup(bot):
