@@ -2,6 +2,7 @@
 from AnitakuWrapper import AnitakuWrapper
 from discord.commands import ApplicationContext
 from discord.ext import commands, tasks
+import asyncio
 import time
 
 from main import TEST_GUILDS
@@ -24,18 +25,39 @@ class CheckNew(commands.Cog):
     async def check_new(self):
         start = time.time()
         async with AnitakuWrapper() as anitaku:
-            anim_list = await self.db.get_anime_list()  # [(7, 'Sousou no Frieren', 'sousou-no-frieren', 22, 'https://gogocdn.net/cover/sousou-no-frieren-1696000134.png'), (8, 'Ore dake Level Up na Ken', 'ore-dake-level-up-na-ken', 6, 'https://gogocdn.net/cover/ore-dake-level-up-na-ken-1704247746.png')]
-            for anime in anim_list:
-                anime_id, anime_name, anime_name_url, last_episode, _ = anime
+            anime_list = await self.db.get_anime_list()
+            print(anime_list)
 
+            # latest episode for each anime
+            latest_episodes = {}
+
+            for anime in anime_list:
+                anime_id, anime_name, anime_name_url, last_episode, image_url = anime
                 latest_episode = await anitaku.get_new_episode(anime_name_url)
-                if latest_episode > last_episode:
-                    print(f"{anime_name} has a new episode! {last_episode} -> {latest_episode}")
-                    print(await self.db.get_guilds_with_anime_channel(anime_name_url))
-                    await self.db.update_last_episode(anime_id, latest_episode)
+                latest_episodes[anime_name_url] = latest_episode
 
-            print(anim_list)
+                print(f"{anime_name} - {last_episode} => {latest_episode}")
+
+                if latest_episode > last_episode:
+                    await self.db.update_last_episode(anime_name_url, latest_episode)
+
+
+                    message = f"New episode for {anime_name} is available!"
+
+
+                    notification_data = await self.db.get_anime_notification_data()
+                    relevant_channels = [item for item in notification_data if item[0] == anime_name_url]
+
+                    await asyncio.gather(*[self.send_message(channel[1], channel[2], message) for channel in relevant_channels])
+
         print(time.time() - start)
+
+    async def send_message(self, guild_id, channel_id, message):
+        guild = self.bot.get_guild(guild_id)
+        if guild:
+            channel = guild.get_channel(channel_id)
+            if channel:
+                await channel.send(message)
 
     @check_new.before_loop
     async def before_check_new(self):

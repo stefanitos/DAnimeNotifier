@@ -69,6 +69,8 @@ class New(commands.Cog):
             await self.db.add_anime(ctx.guild.id, new_channel.id, selected_anime, current_episode)
 
             await ctx.respond(f"Created channel for {selected_anime['name']}", ephemeral=True)
+            
+            await response.delete()
 
 
 def setup(bot):

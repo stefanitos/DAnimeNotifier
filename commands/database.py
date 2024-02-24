@@ -98,6 +98,8 @@ class DatabaseCog(commands.Cog):
             await cursor.execute("DELETE FROM AnimeChannelLink")
             await cursor.execute("DELETE FROM Channel")
             await cursor.execute("DELETE FROM AnimeSeries")
+            await self.db.commit()
+
 
     async def register_guild(self, guild_id, guild_name):
         insert_guild_sql = "INSERT INTO Guild (guild_id, guild_name) VALUES (?, ?)"
@@ -105,6 +107,7 @@ class DatabaseCog(commands.Cog):
         print(f"Registered {guild_name} with id {guild_id}")
 
     async def get_all_guild_anime(self, guild_id):
+        # TODO
         select_all_anime_in_guild_sql = """
         SELECT AnimeSeries.anime_name, AnimeSeries.anime_title_url, AnimeSeries.last_episode
         FROM AnimeSeries
@@ -114,17 +117,9 @@ class DatabaseCog(commands.Cog):
         """
         return await self.fetch_all(select_all_anime_in_guild_sql, (guild_id,))
 
-    async def get_guilds_with_anime_channel(self, anime_name_url):
-        select_guilds_with_anime_sql = """
-        SELECT DISTINCT Channel.guild_id 
-        FROM Channel
-        JOIN AnimeChannelLink ON Channel.channel_id = AnimeChannelLink.channel_id
-        JOIN AnimeSeries ON AnimeChannelLink.anime_id = AnimeSeries.anime_id
-        WHERE AnimeSeries.anime_title_url = ?
-        """
-        return await self.fetch_all(select_guilds_with_anime_sql, (anime_name_url,))
 
     async def guild_has_anime(self, guild_id, anime_name_url) -> bool:
+        # TODO
         select_exists_anime_in_guild_sql = """
         SELECT EXISTS(
             SELECT 1 FROM AnimeChannelLink
@@ -208,7 +203,6 @@ class DatabaseCog(commands.Cog):
                     """
                     await cursor.execute(delete_anime_series_sql)
 
-                # Commit the transaction
                 await cursor.execute("COMMIT")
             except Exception as e:
                 await cursor.execute("ROLLBACK")
@@ -216,9 +210,19 @@ class DatabaseCog(commands.Cog):
                 raise
 
         return True
+    
+    async def get_anime_notification_data(self):
+        sql = """
+        SELECT AnimeSeries.anime_title_url, Channel.guild_id, Channel.channel_id
+        FROM AnimeSeries
+        JOIN AnimeChannelLink ON AnimeSeries.anime_id = AnimeChannelLink.anime_id
+        JOIN Channel ON Channel.channel_id = AnimeChannelLink.channel_id;
+        """
+        return await self.fetch_all(sql)
 
-    async def update_last_episode(self, last_episode, anime_name_url=None):
+    async def update_last_episode(self, anime_name_url, last_episode):
         update_last_episode_sql = "UPDATE AnimeSeries SET last_episode = ? WHERE anime_title_url = ?"
+
         await self.execute_sql(update_last_episode_sql, (last_episode, anime_name_url))
 
     async def is_anime_channel(self, channel_id):
