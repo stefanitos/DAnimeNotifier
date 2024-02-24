@@ -82,6 +82,22 @@ class DatabaseCog(commands.Cog):
             await cursor.execute(sql, params)
             return await cursor.fetchall()
 
+    async def clear_all(self):
+        async with self.db.cursor() as cursor:
+            await cursor.execute("DELETE FROM Channel")
+            await cursor.execute("DELETE FROM AnimeChannelLink")
+            await cursor.execute("DELETE FROM AnimeSeries")
+
+    async def get_guilds_with_anime_channel(self, anime_name_url):
+        select_guilds_with_anime_sql = """
+        SELECT DISTINCT Channel.guild_id 
+        FROM Channel
+        JOIN AnimeChannelLink ON Channel.channel_id = AnimeChannelLink.channel_id
+        JOIN AnimeSeries ON AnimeChannelLink.anime_id = AnimeSeries.anime_id
+        WHERE AnimeSeries.anime_title_url = ?
+        """
+        return await self.fetch_all(select_guilds_with_anime_sql, (anime_name_url,))
+
     async def guild_has_anime(self, guild_id, anime_name_url) -> bool:
         select_exists_anime_in_guild_sql = """
         SELECT EXISTS(

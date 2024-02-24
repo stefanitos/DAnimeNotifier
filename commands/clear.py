@@ -14,12 +14,8 @@ class Clear(commands.Cog):
 
     @commands.slash_command(name="clear", description="Clear all table items", guild_ids=TEST_GUILDS)
     async def clear(self, ctx: ApplicationContext):
-        cursor = await self.db.cursor()
-        await cursor.execute("DELETE FROM AnimeSeries")
-        await cursor.execute("DELETE FROM Channel")
-        await cursor.execute("DELETE FROM AnimeChannelLink")
-        await self.db.commit()
-        await ctx.respond("Cleared all tables!")
+        await self.db.clear_all()
+        await ctx.respond("Cleared all items!")
 
 
 def setup(bot):

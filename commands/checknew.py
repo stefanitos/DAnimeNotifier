@@ -20,7 +20,7 @@ class CheckNew(commands.Cog):
         else:
             print("Couldn't find DatabaseCog!")
 
-    @tasks.loop(seconds=5)
+    @tasks.loop(seconds=10000000)
     async def check_new(self):
         start = time.time()
         async with AnitakuWrapper() as anitaku:
@@ -30,8 +30,9 @@ class CheckNew(commands.Cog):
 
                 latest_episode = await anitaku.get_new_episode(anime_name_url)
                 if latest_episode > last_episode:
+                    print(f"{anime_name} has a new episode! {last_episode} -> {latest_episode}")
+                    print(await self.db.get_guilds_with_anime_channel(anime_name_url))
                     await self.db.update_last_episode(anime_id, latest_episode)
-                    print(f"Updated {anime_name} to {latest_episode}")
 
             print(anim_list)
         print(time.time() - start)
