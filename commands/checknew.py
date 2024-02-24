@@ -20,7 +20,7 @@ class CheckNew(commands.Cog):
         else:
             print("Couldn't find DatabaseCog!")
 
-    @tasks.loop(seconds=10000000)
+    @tasks.loop(seconds=10)
     async def check_new(self):
         start = time.time()
         async with AnitakuWrapper() as anitaku:

@@ -66,6 +66,17 @@ class DatabaseCog(commands.Cog):
         self.db = await aiosqlite.connect("database/identifier.sqlite")
         await self.db.commit()
         self.bot.dispatch('on_database_connected')
+    
+    async def cleanup(self):
+        await self.db.close()
+        print("Database connection closed")
+
+    def cog_unload(self):
+        self.bot.loop.create_task(self.cleanup())
+        
+    @commands.Cog.listener()
+    async def on_disconnect(self):
+        await self.cleanup()
 
     async def execute_sql(self, sql, params=None):
         async with self.db.cursor() as cursor:
@@ -84,9 +95,24 @@ class DatabaseCog(commands.Cog):
 
     async def clear_all(self):
         async with self.db.cursor() as cursor:
-            await cursor.execute("DELETE FROM Channel")
             await cursor.execute("DELETE FROM AnimeChannelLink")
+            await cursor.execute("DELETE FROM Channel")
             await cursor.execute("DELETE FROM AnimeSeries")
+
+    async def register_guild(self, guild_id, guild_name):
+        insert_guild_sql = "INSERT INTO Guild (guild_id, guild_name) VALUES (?, ?)"
+        await self.execute_sql(insert_guild_sql, (guild_id, guild_name))
+        print(f"Registered {guild_name} with id {guild_id}")
+
+    async def get_all_guild_anime(self, guild_id):
+        select_all_anime_in_guild_sql = """
+        SELECT AnimeSeries.anime_name, AnimeSeries.anime_title_url, AnimeSeries.last_episode
+        FROM AnimeSeries
+        INNER JOIN AnimeChannelLink ON AnimeSeries.anime_id = AnimeChannelLink.anime_id
+        INNER JOIN Channel ON Channel.channel_id = AnimeChannelLink.channel_id
+        WHERE Channel.guild_id = ?;
+        """
+        return await self.fetch_all(select_all_anime_in_guild_sql, (guild_id,))
 
     async def get_guilds_with_anime_channel(self, anime_name_url):
         select_guilds_with_anime_sql = """
@@ -109,20 +135,6 @@ class DatabaseCog(commands.Cog):
         """
         return bool(await self.fetch_one(select_exists_anime_in_guild_sql, (anime_name_url, guild_id)))
 
-    async def register_guild(self, guild_id, guild_name):
-        insert_guild_sql = "INSERT INTO Guild (guild_id, guild_name) VALUES (?, ?)"
-        await self.execute_sql(insert_guild_sql, (guild_id, guild_name))
-        print(f"Registered {guild_name} with id {guild_id}")
-
-    async def get_all_guild_anime(self, guild_id):
-        select_all_anime_in_guild_sql = """
-        SELECT AnimeSeries.anime_name, AnimeSeries.anime_title_url, AnimeSeries.last_episode
-        FROM AnimeSeries
-        INNER JOIN AnimeChannelLink ON AnimeSeries.anime_id = AnimeChannelLink.anime_id
-        INNER JOIN Channel ON Channel.channel_id = AnimeChannelLink.channel_id
-        WHERE Channel.guild_id = ?;
-        """
-        return await self.fetch_all(select_all_anime_in_guild_sql, (guild_id,))
 
     async def add_anime(self, guild_id, channel_id, search_results: dict, last_episode):
         # search_results =
@@ -205,12 +217,9 @@ class DatabaseCog(commands.Cog):
 
         return True
 
-    async def update_last_episode(self, last_episode, anime_id=None, anime_name_url=None):
-        if anime_id is None:
-            select_anime_id_by_url_sql = "SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?"
-            anime_id = (await self.fetch_one(select_anime_id_by_url_sql, (anime_name_url,)))[0]
-        update_last_episode_sql = "UPDATE AnimeSeries SET last_episode = ? WHERE anime_id = ?"
-        await self.execute_sql(update_last_episode_sql, (last_episode, anime_id))
+    async def update_last_episode(self, last_episode, anime_name_url=None):
+        update_last_episode_sql = "UPDATE AnimeSeries SET last_episode = ? WHERE anime_title_url = ?"
+        await self.execute_sql(update_last_episode_sql, (last_episode, anime_name_url))
 
     async def is_anime_channel(self, channel_id):
         select_anime_channel_sql = "SELECT EXISTS(SELECT 1 FROM AnimeChannelLink WHERE channel_id = ?)"
@@ -219,17 +228,6 @@ class DatabaseCog(commands.Cog):
     async def get_anime_list(self):
         select_all_anime_series_sql = "SELECT anime_id, anime_name, anime_title_url, last_episode, image FROM AnimeSeries;"
         return await self.fetch_all(select_all_anime_series_sql)
-
-    async def cleanup(self):
-        await self.db.close()
-        print("Database connection closed")
-
-    def cog_unload(self):
-        self.bot.loop.create_task(self.cleanup())
-
-    @commands.Cog.listener()
-    async def on_disconnect(self):
-        await self.cleanup()
 
 
 def setup(bot):

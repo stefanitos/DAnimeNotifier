@@ -180,3 +180,5 @@ pyrightconfig.json
 .idea
 
 *.sqlite
+
+_*.py
