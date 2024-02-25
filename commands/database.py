@@ -66,14 +66,14 @@ class DatabaseCog(commands.Cog):
         self.db = await aiosqlite.connect("database/identifier.sqlite")
         await self.db.commit()
         self.bot.dispatch('on_database_connected')
-    
+
     async def cleanup(self):
         await self.db.close()
         print("Database connection closed")
 
     def cog_unload(self):
         self.bot.loop.create_task(self.cleanup())
-        
+
     @commands.Cog.listener()
     async def on_disconnect(self):
         await self.cleanup()
@@ -100,7 +100,6 @@ class DatabaseCog(commands.Cog):
             await cursor.execute("DELETE FROM AnimeSeries")
             await self.db.commit()
 
-
     async def register_guild(self, guild_id, guild_name):
         insert_guild_sql = "INSERT INTO Guild (guild_id, guild_name) VALUES (?, ?)"
         await self.execute_sql(insert_guild_sql, (guild_id, guild_name))
@@ -117,7 +116,6 @@ class DatabaseCog(commands.Cog):
         """
         return await self.fetch_all(select_all_anime_in_guild_sql, (guild_id,))
 
-
     async def guild_has_anime(self, guild_id, anime_name_url) -> bool:
         # TODO
         select_exists_anime_in_guild_sql = """
@@ -129,7 +127,6 @@ class DatabaseCog(commands.Cog):
         );
         """
         return bool(await self.fetch_one(select_exists_anime_in_guild_sql, (anime_name_url, guild_id)))
-
 
     async def add_anime(self, guild_id, channel_id, search_results: dict, last_episode):
         # search_results =
@@ -210,7 +207,7 @@ class DatabaseCog(commands.Cog):
                 raise
 
         return True
-    
+
     async def get_channels_to_notify(self, anime_name_url):
         select_channels_to_notify_sql = """
         SELECT Channel.channel_id FROM AnimeChannelLink
