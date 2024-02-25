@@ -211,14 +211,15 @@ class DatabaseCog(commands.Cog):
 
         return True
     
-    async def get_anime_notification_data(self):
-        sql = """
-        SELECT AnimeSeries.anime_title_url, Channel.guild_id, Channel.channel_id
-        FROM AnimeSeries
-        JOIN AnimeChannelLink ON AnimeSeries.anime_id = AnimeChannelLink.anime_id
-        JOIN Channel ON Channel.channel_id = AnimeChannelLink.channel_id;
+    async def get_channels_to_notify(self, anime_name_url):
+        select_channels_to_notify_sql = """
+        SELECT Channel.channel_id FROM AnimeChannelLink
+        INNER JOIN Channel ON Channel.channel_id = AnimeChannelLink.channel_id
+        WHERE anime_id = (
+            SELECT anime_id FROM AnimeSeries WHERE anime_title_url = ?
+        )
         """
-        return await self.fetch_all(sql)
+        return await self.fetch_all(select_channels_to_notify_sql, (anime_name_url,))
 
     async def update_last_episode(self, anime_name_url, last_episode):
         update_last_episode_sql = "UPDATE AnimeSeries SET last_episode = ? WHERE anime_title_url = ?"
