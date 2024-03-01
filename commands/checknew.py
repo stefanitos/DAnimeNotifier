@@ -5,13 +5,20 @@ from discord.ext import commands, tasks
 from discord import Embed
 import asyncio
 import time
+from discord import Colour
+from datetime import datetime
 
 
 class NewEpisodeEmbed(Embed):
     def __init__(self, anime_name: str, episode: int, image_url: str):
-        super().__init__(title=f"New episode for {anime_name} is available!", description=f"Episode {episode}",
-                         color=0x00ff00)
+        super().__init__(
+            title=anime_name,
+            description=f"Episode {episode}",
+            color=Colour.green(),  # Use Colour.green() instead of 0x00ff00 for better readability
+            timestamp=datetime.utcnow()  # Add timestamp
+        )
         self.set_image(url=image_url)
+        self.set_footer(text="Anime Updates")  # Add a footer if you want
 
 
 class CheckNew(commands.Cog):
@@ -27,7 +34,7 @@ class CheckNew(commands.Cog):
         else:
             print("Couldn't find DatabaseCog!")
 
-    @tasks.loop(seconds=30)
+    @tasks.loop(minutes=1)
     async def check_new(self):
         start = time.time()
         async with AnitakuWrapper() as anitaku:
@@ -53,7 +60,7 @@ class CheckNew(commands.Cog):
 
                     await self.db.update_last_episode(anime_name_url, latest_episode)
 
-        # print(time.time() - start)
+        print(time.time() - start)
 
     async def send_new_episode_notification(self, channel_id, anime_name, episode, image_url):
         channel = self.bot.get_channel(channel_id)
