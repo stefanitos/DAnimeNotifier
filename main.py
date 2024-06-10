@@ -13,13 +13,13 @@ else:
 
 bot = Bot(intents=Intents.all())
 
-
 bot.load_extension("commands.database")
 
 for filename in os.listdir("./commands"):
     if filename.endswith(".py") and not filename.startswith("_"):
         if not filename.startswith("database"):
             bot.load_extension(f"commands.{filename[:-3]}")
+
 
 @bot.event
 async def on_ready():
@@ -30,6 +30,7 @@ async def on_ready():
 async def reload(ctx, cog: str):
     bot.reload_extension(f"commands.{cog}")
     await ctx.respond(f"Reloaded {cog}")
+
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)

@@ -182,3 +182,4 @@ pyrightconfig.json
 *.sqlite
 
 _*.py
+.vscode/

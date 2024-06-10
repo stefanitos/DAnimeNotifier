@@ -7,7 +7,6 @@ from main import TEST_GUILDS
 from AnitakuWrapper import AnitakuWrapper
 
 
-# Helper functions
 def list_to_num_string(anime_list):
     if isinstance(anime_list[0], dict):
         anime_list = [anime["name"] for anime in anime_list]
