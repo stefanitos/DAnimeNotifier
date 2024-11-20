@@ -6,7 +6,7 @@ from discord import Embed
 import asyncio
 import time
 from discord import Colour
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class NewEpisodeEmbed(Embed):
@@ -15,10 +15,10 @@ class NewEpisodeEmbed(Embed):
             title=anime_name,
             description=f"Episode {episode}",
             color=Colour.green(),  # Use Colour.green() instead of 0x00ff00 for better readability
-            timestamp=datetime.utcnow()  # Add timestamp
+            timestamp=datetime.now(timezone.utc)
         )
         self.set_image(url=image_url)
-        self.set_footer(text="Anime Updates")  # Add a footer if you want
+        self.set_footer(text="Anime Updates")
 
 
 class CheckNew(commands.Cog):
